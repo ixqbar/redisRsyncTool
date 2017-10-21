@@ -10,12 +10,9 @@ type JzTask struct {
 	M5Sum string
 	AbsolutePath string
 	RelativePath string
-	Scope []string
-	expectFinishedNum int
-}
-
-func (this *JzTask) Expect(num int) {
-	this.expectFinishedNum = num
+	HostNames []string
+	ExpectFinishedNum int
+	RsyncMaxNum int
 }
 
 func (this *JzTask) Done(num int)  {
@@ -24,7 +21,7 @@ func (this *JzTask) Done(num int)  {
 	}
 
 	status := 500
-	if this.expectFinishedNum <= num {
+	if this.ExpectFinishedNum <= num {
 		status = 200
 	}
 
@@ -79,7 +76,8 @@ func AssembleTask(id int, file string) (*JzTask, error) {
 		M5Sum:md5sum,
 		AbsolutePath: taskDir,
 		RelativePath: taskRelativePath,
-		Scope:[]string{},
-		expectFinishedNum:len(jzRsyncConfig.TargetServer),
+		HostNames:[]string{},
+		ExpectFinishedNum:len(jzRsyncConfig.TargetServer),
+		RsyncMaxNum:3,
 	}, nil
 }

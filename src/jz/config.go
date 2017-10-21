@@ -9,6 +9,7 @@ import (
 
 type JzTargetServer struct {
 	Name string `xml:"name"`
+	Group string `xml:"group"`
 	Address string `xml:"address"`
 }
 

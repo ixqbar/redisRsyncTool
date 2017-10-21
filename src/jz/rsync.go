@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 	"os"
+	"errors"
 )
 
 type JzRsyncTarget struct {
@@ -22,11 +23,11 @@ type JzRsyncTarget struct {
 func (this *JzRsyncTarget) Connect() (error) {
 	conn, err := net.Dial("tcp", this.Target.Address)
 	if err != nil {
-		JzLogger.Printf("connecting target server %s failed %s", this.Target.Name, err)
+		JzLogger.Printf("connecting target server %s failed %s", this.Target.Address, err)
 		return err
 	}
 
-	JzLogger.Printf("connecting target server %s success", this.Target.Name)
+	JzLogger.Printf("connecting target server %s success", this.Target.Address)
 
 	this.conn = conn
 	this.tryConnect = false
@@ -84,7 +85,26 @@ func (this *JzRsyncTarget) Stop() {
 	JzLogger.Printf("%s stopped", this.Target.Name)
 }
 
-func (this *JzRsyncTarget) Rsync(t *JzTask) (bool, error) {
+func (this *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
+	loop := 0;
+
+	for {
+		if loop > num {
+			return false, errors.New(fmt.Sprintf("rsync %s to server %s failed", t.Path, this.Target.Address))
+		}
+
+		loop++
+		ok, err := this.RsyncOnce(t)
+		if !ok {
+			JzLogger.Print(err)
+			continue
+		}
+
+		return true,nil
+	}
+}
+
+func (this *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 	this.Lock()
 	defer this.Unlock()
 
@@ -151,7 +171,7 @@ type JzRsync struct {
 	intervalToStopped chan bool
 	queue chan *JzTask
 	target []*JzRsyncTarget
-	AllTargetNames []string
+	AllTargetHostNames []string
 }
 
 func (this *JzRsync) Init()  {
@@ -159,7 +179,7 @@ func (this *JzRsync) Init()  {
 	this.taskToStopped = make(chan bool, 1)
 	this.intervalToStopped = make(chan bool, 1)
 	this.queue = make(chan *JzTask, 100)
-	this.AllTargetNames = make([]string, len(jzRsyncConfig.TargetServer))
+	this.AllTargetHostNames = make([]string, len(jzRsyncConfig.TargetServer))
 
 	this.target = make([]*JzRsyncTarget, 0)
 	for _, s := range jzRsyncConfig.TargetServer {
@@ -167,7 +187,7 @@ func (this *JzRsync) Init()  {
 		t.Start()
 
 		this.target = append(this.target, t)
-		this.AllTargetNames = append(this.AllTargetNames, strings.ToUpper(s.Name))
+		this.AllTargetHostNames = append(this.AllTargetHostNames, strings.ToUpper(s.Name))
 	}
 }
 
@@ -242,15 +262,17 @@ E:
 				JzLogger.Print("get task from queue", t)
 				n := 0
 				for _, ts := range this.target {
-					if len(t.Scope) != 0 && InStringArray(strings.ToUpper(ts.Target.Name), t.Scope) == false && InStringArray("ALL", t.Scope) == false {
+					if InStringArray(strings.ToUpper(ts.Target.Name), t.HostNames) == false && InStringArray("ALL", t.HostNames) == false {
 						n += 1
 						continue
 					}
-					ok, err := ts.Rsync(t)
+
+					ok, err := ts.Rsync(t, t.RsyncMaxNum)
 					if !ok {
 						JzLogger.Print(err)
-						continue
+						break
 					}
+
 					n += 1
 				}
 

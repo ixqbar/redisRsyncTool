@@ -53,7 +53,7 @@ func (dao *JzDao) Close() {
 }
 
 func (dao *JzDao) GetTasks() ([]*JzTask, error) {
-	rows, err := dao.db.Query("select id,uri,md5 from sync_files where status!=404 AND status!=200 order by id asc")
+	rows, err := dao.db.Query("select id,uri,md5,dest from sync_files where status!=404 AND status!=200 order by id asc")
 	if err != nil {
 		JzLogger.Print("prepare sql failed", err)
 		return nil, err
@@ -63,13 +63,19 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 	var id int
 	var imgUri string
 	var md5Sum string
+	var destName string
 
 	result := make([]*JzTask, 0)
 
 	for rows.Next() {
-		err := rows.Scan(&id, &imgUri, &md5Sum)
+		err := rows.Scan(&id, &imgUri, &md5Sum, &destName)
 		if err != nil {
 			JzLogger.Print("pull task scan failed", err)
+			continue
+		}
+
+		if len(destName) == 0 {
+			JzLogger.Printf("pull unknown target server task with %d", id)
 			continue
 		}
 
@@ -85,6 +91,8 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 			JzLogger.Printf("get task file %s md5sum failed %s %s", path.Join(jzRsyncConfig.Repertory, imgUri), strings.ToLower(md5Sum), task.M5Sum)
 			continue
 		}
+
+		task.HostNames = append(task.HostNames, strings.ToUpper(destName))
 
 		JzLogger.Print("got task from db", task)
 

@@ -6,7 +6,7 @@
     <!-- 要同步资源的目标列表 -->
     <target>
         <server>
-            <name>cdn1</name>
+            <name>cdn</name>
             <address>192.168.1.123:2010</address>
         </server>
     </target>
@@ -15,8 +15,8 @@
     <mysql>
         <ip>192.168.1.42</ip>
         <username>root</username>
-        <password></password>
+        <password>8ik,lp-</password>
         <port>3306</port>
-        <database></database>
+        <database>admin_zwj2</database>
     </mysql>
 </config>
