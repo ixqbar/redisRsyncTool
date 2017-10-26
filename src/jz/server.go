@@ -19,7 +19,7 @@ var (
 
 const (
 	VERSION = "0.0.1"
-	OK      = "OK"
+	OK      = "+OK"
 )
 
 type JzRsyncRedisHandle struct {
