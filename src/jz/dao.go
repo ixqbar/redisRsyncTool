@@ -52,6 +52,15 @@ func (dao *JzDao) Close() {
 	JzLogger.Print("db closed")
 }
 
+func (dao *JzDao) CancelTask(id int, status int) {
+	n, err := dao.UpdateTask(id, status)
+	if err == nil {
+		JzLogger.Printf("update task %d success status=%d,affectedRows=%d", id, status, n)
+	} else {
+		JzLogger.Printf("update task %d failed %v", id, err)
+	}
+}
+
 func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 	rows, err := dao.db.Query("select id,uri,md5,dest from sync_files where status!=404 AND status!=200 order by id asc")
 	if err != nil {
@@ -75,24 +84,32 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 		}
 
 		if len(imgUri) == 0 {
+			dao.CancelTask(id, 404)
 			JzLogger.Printf("pull empty task with %d", id)
 			continue
 		}
 
 		if len(destName) == 0 {
+			dao.CancelTask(id, 404)
 			JzLogger.Printf("pull unknown target server task with %d", id)
 			continue
 		}
 
 		task, err := AssembleTask(id, imgUri)
-		if err != nil || task.Size == 0 {
-			task.Cancel(404)
+		if err != nil {
+			dao.CancelTask(id, 404)
+			JzLogger.Printf("assemble task file %s failed %v", path.Join(jzRsyncConfig.Repertory, imgUri), err)
+			continue
+		}
+
+		if task.Size == 0 {
+			dao.CancelTask(id, 404)
 			JzLogger.Printf("get task file %s size failed", path.Join(jzRsyncConfig.Repertory, imgUri))
 			continue
 		}
 
 		if len(md5Sum) > 0 && strings.ToLower(md5Sum) != task.M5Sum {
-			task.Cancel(412)
+			dao.CancelTask(id, 404)
 			JzLogger.Printf("get task file %s md5sum failed %s %s", path.Join(jzRsyncConfig.Repertory, imgUri), strings.ToLower(md5Sum), task.M5Sum)
 			continue
 		}

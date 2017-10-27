@@ -19,7 +19,6 @@ var (
 
 const (
 	VERSION = "0.0.1"
-	OK      = "+OK"
 )
 
 type JzRsyncRedisHandle struct {
@@ -51,44 +50,44 @@ func (this *JzRsyncRedisHandle) Version() (string, error) {
 	return VERSION, nil
 }
 
-func (this *JzRsyncRedisHandle) Setex(hostName, file, md5sum string) (string, error) {
+func (this *JzRsyncRedisHandle) Setex(hostName, file, md5sum string) (error) {
 	return this.Set(hostName, file, "EX", md5sum)
 }
 
-func (this *JzRsyncRedisHandle) Set(hostName, file, action, md5sum string) (string, error) {
+func (this *JzRsyncRedisHandle) Set(hostName, file, action, md5sum string) (error) {
 	if len(hostName) == 0 || len(file) == 0 {
-		return "", ERR_PARAMS
+		return ERR_PARAMS
 	}
 
 	if len(action) > 0 {
 		if strings.ToLower(action) != "ex" {
-			return "", ERR_PARAMS
+			return ERR_PARAMS
 		}
 
 		if len(md5sum) != 32 {
-			return "", ERR_PARAMS
+			return ERR_PARAMS
 		}
 	}
 
 	hostName = strings.ToUpper(hostName)
 	if hostName != "ALL" && false == InStringArray(hostName, this.rsync.AllTargetHostNames) {
-		return "", ERR_TARGET_HOST
+		return ERR_TARGET_HOST
 	}
 
 	task, err := AssembleTask(0, file)
 	if err != nil || task.Size == 0 {
-		return "", NOT_FOUND_FIELS
+		return NOT_FOUND_FIELS
 	}
 
 	if len(md5sum) > 0 && strings.ToLower(md5sum) != task.M5Sum {
-		return "",NOT_TRANSFER_FILE_MD5SUM
+		return NOT_TRANSFER_FILE_MD5SUM
 	}
 
 	task.HostNames = append(task.HostNames, hostName)
 
 	this.rsync.Send(task)
 
-	return OK, nil
+	return nil
 }
 
 func Run() {

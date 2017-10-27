@@ -7,7 +7,7 @@
     <target>
         <server>
             <name>cdn</name>
-            <address>192.168.1.123:2010</address>
+            <address>192.168.1.66:2010</address>
         </server>
     </target>
     <!-- 数据读取配置 间隔以interval为准 -->
