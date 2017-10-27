@@ -74,13 +74,18 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 			continue
 		}
 
+		if len(imgUri) == 0 {
+			JzLogger.Printf("pull empty task with %d", id)
+			continue
+		}
+
 		if len(destName) == 0 {
 			JzLogger.Printf("pull unknown target server task with %d", id)
 			continue
 		}
 
 		task, err := AssembleTask(id, imgUri)
-		if err == nil || task.Size == 0 {
+		if err != nil || task.Size == 0 {
 			task.Cancel(404)
 			JzLogger.Printf("get task file %s size failed", path.Join(jzRsyncConfig.Repertory, imgUri))
 			continue

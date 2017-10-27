@@ -6,7 +6,7 @@ import (
 )
 
 func init()  {
-	redis.Logger.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
+	redis.Logger.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 }
 
 var JzLogger = redis.Logger
