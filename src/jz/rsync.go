@@ -27,7 +27,7 @@ func (this *JzRsyncTarget) Connect() (error) {
 		return err
 	}
 
-	JzLogger.Printf("connecting target server %s success", this.Target.Address)
+	JzLogger.Printf("connecting target server %s run at %s success", this.Target.Name, this.Target.Address)
 
 	this.conn = conn
 	this.tryConnect = false
@@ -95,8 +95,13 @@ func (this *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
 
 		loop++
 		ok, err := this.RsyncOnce(t)
-		if !ok {
+		if err != nil {
 			JzLogger.Print(err)
+			continue
+		}
+
+		if !ok {
+			JzLogger.Printf("try again rsync %s to server %s", t.Path, this.Target.Address)
 			continue
 		}
 
@@ -181,13 +186,12 @@ func (this *JzRsync) Init()  {
 	this.queue = make(chan *JzTask, 100)
 	this.AllTargetHostNames = make([]string, len(jzRsyncConfig.TargetServer))
 
-	this.target = make([]*JzRsyncTarget, 0)
-	for _, s := range jzRsyncConfig.TargetServer {
-		t := &JzRsyncTarget{Target:&s}
-		t.Start()
-
-		this.target = append(this.target, t)
-		this.AllTargetHostNames = append(this.AllTargetHostNames, strings.ToUpper(s.Name))
+	t := len(jzRsyncConfig.TargetServer)
+	this.target = make([]*JzRsyncTarget, t)
+	for i := 0; i < t ; i++ {
+		this.target[i] = &JzRsyncTarget{Target:&jzRsyncConfig.TargetServer[i]}
+		this.target[i].Start()
+		this.AllTargetHostNames = append(this.AllTargetHostNames, strings.ToUpper(jzRsyncConfig.TargetServer[i].Name))
 	}
 }
 
@@ -262,8 +266,10 @@ E:
 				JzLogger.Print("get task from queue", t)
 				n := 0
 				for _, ts := range this.target {
+					JzLogger.Printf("task id %d will rsync for %s run at %s", t.Id, ts.Target.Name, ts.Target.Address)
 					if InStringArray(strings.ToUpper(ts.Target.Name), t.HostNames) == false && InStringArray("ALL", t.HostNames) == false {
 						n += 1
+						JzLogger.Printf("task id %d ignore with %s run at %s", t.Id, ts.Target.Name, ts.Target.Address)
 						continue
 					}
 
