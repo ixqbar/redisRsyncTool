@@ -22,7 +22,7 @@ type JzMysqlConfig struct {
 
 type JzRsyncConfig struct {
 	Address string `xml:"address"`
-	Repertory string `xml:"repertory""`
+	Repertory string `xml:"repertory"`
 	Interval int `xml:"interval"`
 	TargetServer []JzTargetServer `xml:"target>server"`
 	MysqlConfig JzMysqlConfig `xml:"mysql"`

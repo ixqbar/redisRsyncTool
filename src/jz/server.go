@@ -6,14 +6,14 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	redis "github.com/jonnywang/go-kits/redis"
+	"github.com/jonnywang/go-kits/redis"
 	"strings"
 )
 
 var (
 	ERR_PARAMS = errors.New("error params")
 	ERR_TARGET_HOST = errors.New("error target host")
-	NOT_FOUND_FIELS = errors.New("not found rsync files")
+	NOT_FOUND_FILES = errors.New("not found rsync files")
 	NOT_TRANSFER_FILE_MD5SUM = errors.New("error transfer file md5sum")
 )
 
@@ -27,34 +27,34 @@ type JzRsyncRedisHandle struct {
 	rsync *JzRsync
 }
 
-func (this *JzRsyncRedisHandle) Init() error {
-	this.Lock()
-	defer this.Unlock()
+func (obj *JzRsyncRedisHandle) Init() error {
+	obj.Lock()
+	defer obj.Unlock()
 
-	this.rsync = &JzRsync{}
-	this.rsync.Init()
+	obj.rsync = &JzRsync{}
+	obj.rsync.Init()
 
 	go func() {
-		this.rsync.Run()
+		obj.rsync.Run()
 	}()
 
 	return nil
 }
 
-func (this *JzRsyncRedisHandle) Shutdown() {
+func (obj *JzRsyncRedisHandle) Shutdown() {
 	redis.Logger.Print("searcher server will shutdown!!!")
-	this.rsync.Stop()
+	obj.rsync.Stop()
 }
 
-func (this *JzRsyncRedisHandle) Version() (string, error) {
+func (obj *JzRsyncRedisHandle) Version() (string, error) {
 	return VERSION, nil
 }
 
-func (this *JzRsyncRedisHandle) Setex(hostName, file, md5sum string) (error) {
-	return this.Set(hostName, file, "EX", md5sum)
+func (obj *JzRsyncRedisHandle) Setex(hostName, file, md5sum string) (error) {
+	return obj.Set(hostName, file, "EX", md5sum)
 }
 
-func (this *JzRsyncRedisHandle) Set(hostName, file, action, md5sum string) (error) {
+func (obj *JzRsyncRedisHandle) Set(hostName, file, action, md5sum string) (error) {
 	if len(hostName) == 0 || len(file) == 0 {
 		return ERR_PARAMS
 	}
@@ -70,13 +70,13 @@ func (this *JzRsyncRedisHandle) Set(hostName, file, action, md5sum string) (erro
 	}
 
 	hostName = strings.ToUpper(hostName)
-	if hostName != "ALL" && false == InStringArray(hostName, this.rsync.AllTargetHostNames) {
+	if hostName != "ALL" && false == InStringArray(hostName, obj.rsync.AllTargetHostNames) {
 		return ERR_TARGET_HOST
 	}
 
 	task, err := AssembleTask(0, file)
 	if err != nil || task.Size == 0 {
-		return NOT_FOUND_FIELS
+		return NOT_FOUND_FILES
 	}
 
 	if len(md5sum) > 0 && strings.ToLower(md5sum) != task.M5Sum {
@@ -85,7 +85,7 @@ func (this *JzRsyncRedisHandle) Set(hostName, file, action, md5sum string) (erro
 
 	task.HostNames = append(task.HostNames, hostName)
 
-	this.rsync.Send(task)
+	obj.rsync.Send(task)
 
 	return nil
 }

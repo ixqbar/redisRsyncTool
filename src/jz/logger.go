@@ -2,7 +2,7 @@ package jz
 
 import (
 	"log"
-	redis "github.com/jonnywang/go-kits/redis"
+	"github.com/jonnywang/go-kits/redis"
 )
 
 func init()  {

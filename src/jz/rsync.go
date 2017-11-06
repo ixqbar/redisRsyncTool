@@ -20,26 +20,26 @@ type JzRsyncTarget struct {
 	stopped chan bool
 }
 
-func (this *JzRsyncTarget) Connect() (error) {
-	conn, err := net.Dial("tcp", this.Target.Address)
+func (obj *JzRsyncTarget) Connect() (error) {
+	conn, err := net.Dial("tcp", obj.Target.Address)
 	if err != nil {
-		JzLogger.Printf("connecting target server %s failed %s", this.Target.Address, err)
+		JzLogger.Printf("connecting target server %s failed %s", obj.Target.Address, err)
 		return err
 	}
 
-	JzLogger.Printf("connecting target server %s run at %s success", this.Target.Name, this.Target.Address)
+	JzLogger.Printf("connecting target server %s run at %s success", obj.Target.Name, obj.Target.Address)
 
-	this.conn = conn
-	this.tryConnect = false
+	obj.conn = conn
+	obj.tryConnect = false
 
-	return nil;
+	return nil
 }
 
-func (this *JzRsyncTarget) Start() {
-	this.buffer = make([]byte, 1024)
-	this.tryConnect = true
-	this.connStopped = make(chan bool, 1)
-	this.stopped = make(chan bool, 1)
+func (obj *JzRsyncTarget) Start() {
+	obj.buffer = make([]byte, 1024)
+	obj.tryConnect = true
+	obj.connStopped = make(chan bool, 1)
+	obj.stopped = make(chan bool, 1)
 
 	go func() {
 		interval := time.NewTicker(time.Second * time.Duration(5))
@@ -48,60 +48,60 @@ func (this *JzRsyncTarget) Start() {
 	T:
 		for {
 			select {
-			case <- this.connStopped:
+			case <- obj.connStopped:
 				JzLogger.Print("catch TargetServerStopped signal")
 				break T
 			case <- interval.C:
 				func() {
-					this.Lock()
-					defer this.Unlock()
+					obj.Lock()
+					defer obj.Unlock()
 
-					if this.tryConnect {
-						err := this.Connect()
+					if obj.tryConnect {
+						err := obj.Connect()
 						if err != nil {
-							JzLogger.Printf("reconnect target server %s failed %s", this.Target.Name, err)
+							JzLogger.Printf("reconnect target server %s failed %s", obj.Target.Name, err)
 							return
 						}
-						this.tryConnect = false
+						obj.tryConnect = false
 					}
 
-					this.conn.Write([]byte("PING\r\n"))
-					n, err := this.conn.Read(this.buffer)
+					obj.conn.Write([]byte("PING\r\n"))
+					n, err := obj.conn.Read(obj.buffer)
 					if err == nil {
-						JzLogger.Printf("ping %s got %s", this.Target.Name, strings.Trim(string(this.buffer[:n]), "\r\n"))
+						JzLogger.Printf("ping %s got %s", obj.Target.Name, strings.Trim(string(obj.buffer[:n]), "\r\n"))
 					}
 				}()
 			}
 		}
 
-		this.stopped <- true
+		obj.stopped <- true
 	}()
 }
 
-func (this *JzRsyncTarget) Stop() {
-	JzLogger.Printf("send stopped signal to %s", this.Target.Name)
-	this.connStopped <- true
-	<-this.stopped
-	JzLogger.Printf("%s stopped", this.Target.Name)
+func (obj *JzRsyncTarget) Stop() {
+	JzLogger.Printf("send stopped signal to %s", obj.Target.Name)
+	obj.connStopped <- true
+	<-obj.stopped
+	JzLogger.Printf("%s stopped", obj.Target.Name)
 }
 
-func (this *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
-	loop := 0;
+func (obj *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
+	loop := 0
 
 	for {
 		if loop > num {
-			return false, errors.New(fmt.Sprintf("rsync %s to server %s failed", t.Path, this.Target.Address))
+			return false, errors.New(fmt.Sprintf("rsync %s to server %s failed", t.Path, obj.Target.Address))
 		}
 
 		loop++
-		ok, err := this.RsyncOnce(t)
+		ok, err := obj.RsyncOnce(t)
 		if err != nil {
 			JzLogger.Print(err)
 			continue
 		}
 
 		if !ok {
-			JzLogger.Printf("try again rsync %s to server %s", t.Path, this.Target.Address)
+			JzLogger.Printf("try again rsync %s to server %s", t.Path, obj.Target.Address)
 			continue
 		}
 
@@ -109,28 +109,28 @@ func (this *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
 	}
 }
 
-func (this *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
-	this.Lock()
-	defer this.Unlock()
+func (obj *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
+	obj.Lock()
+	defer obj.Unlock()
 
-	if this.tryConnect {
-		err := this.Connect()
+	if obj.tryConnect {
+		err := obj.Connect()
 		if err != nil {
-			JzLogger.Print("reconnect target server %s failed %s", this.Target.Name, err)
+			JzLogger.Printf("reconnect target server %s failed %s", obj.Target.Name, err)
 			return false, err
 		}
-		this.tryConnect = false
+		obj.tryConnect = false
 	}
 
 	f, err := os.Open(t.Path)
 	if err != nil {
-		JzLogger.Print("Open file %s failed %v", t.AbsolutePath, err)
+		JzLogger.Printf("Open file %s failed %v", t.AbsolutePath, err)
 		return false, err
 	}
-	defer f.Close();
+	defer f.Close()
 
 	targetFileSuffix := fmt.Sprintf("%s@%d@%s@%s\r\n", t.Name, t.Size, t.M5Sum, t.RelativePath)
-	this.conn.Write([]byte(targetFileSuffix))
+	obj.conn.Write([]byte(targetFileSuffix))
 
 	buf := make([]byte, 1024)
 	total := 0
@@ -141,7 +141,7 @@ func (this *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 		}
 
 		if nr > 0 {
-			nw, ew := this.conn.Write(buf[0:nr])
+			nw, ew := obj.conn.Write(buf[0:nr])
 			if ew != nil {
 				break
 			}
@@ -155,16 +155,16 @@ func (this *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 	}
 
 	r := false
-	n, err := this.conn.Read(this.buffer)
+	n, err := obj.conn.Read(obj.buffer)
 	if err == nil {
-		rr := strings.Trim(string(this.buffer[:n]), "\r\n")
+		rr := strings.Trim(string(obj.buffer[:n]), "\r\n")
 		if rr == "OK" {
 			r = true
 		}
-		JzLogger.Printf("Transerf %s to %s %s", t.Path, this.Target.Name, rr)
+		JzLogger.Printf("Transerf %s to %s %s", t.Path, obj.Target.Name, rr)
 	} else {
-		this.tryConnect = true
-		JzLogger.Printf("Transerf %s to %s failed %s", t.Path,  this.Target.Name, err)
+		obj.tryConnect = true
+		JzLogger.Printf("Transerf %s to %s failed %s", t.Path,  obj.Target.Name, err)
 	}
 
 	return r, err
@@ -179,51 +179,51 @@ type JzRsync struct {
 	AllTargetHostNames []string
 }
 
-func (this *JzRsync) Init()  {
-	this.stopped = make(chan bool, 2)
-	this.taskToStopped = make(chan bool, 1)
-	this.intervalToStopped = make(chan bool, 1)
-	this.queue = make(chan *JzTask, 100)
-	this.AllTargetHostNames = make([]string, len(jzRsyncConfig.TargetServer))
+func (obj *JzRsync) Init()  {
+	obj.stopped = make(chan bool, 2)
+	obj.taskToStopped = make(chan bool, 1)
+	obj.intervalToStopped = make(chan bool, 1)
+	obj.queue = make(chan *JzTask, 100)
+	obj.AllTargetHostNames = make([]string, len(jzRsyncConfig.TargetServer))
 
 	t := len(jzRsyncConfig.TargetServer)
-	this.target = make([]*JzRsyncTarget, t)
+	obj.target = make([]*JzRsyncTarget, t)
 	for i := 0; i < t ; i++ {
-		this.target[i] = &JzRsyncTarget{Target:&jzRsyncConfig.TargetServer[i]}
-		this.target[i].Start()
-		this.AllTargetHostNames = append(this.AllTargetHostNames, strings.ToUpper(jzRsyncConfig.TargetServer[i].Name))
+		obj.target[i] = &JzRsyncTarget{Target:&jzRsyncConfig.TargetServer[i]}
+		obj.target[i].Start()
+		obj.AllTargetHostNames = append(obj.AllTargetHostNames, strings.ToUpper(jzRsyncConfig.TargetServer[i].Name))
 	}
 }
 
-func (this *JzRsync) Send(t *JzTask) (bool, error) {
-	this.queue <- t
+func (obj *JzRsync) Send(t *JzTask) (bool, error) {
+	obj.queue <- t
 	return true, nil
 }
 
-func (this *JzRsync) Stop() {
+func (obj *JzRsync) Stop() {
 	JzLogger.Print("send Stopped signal")
-	this.intervalToStopped <- true
-	this.taskToStopped <- true
+	obj.intervalToStopped <- true
+	obj.taskToStopped <- true
 	JzLogger.Print("send Stopped signal OK")
 
-	<- this.stopped
-	<- this.stopped
+	<- obj.stopped
+	<- obj.stopped
 
-	for _, ts := range this.target {
+	for _, ts := range obj.target {
 		ts.Stop()
 	}
 
 	JzLogger.Print("rsync stopped")
 }
 
-func (this *JzRsync) Interval() {
+func (obj *JzRsync) Interval() {
 	interval := time.NewTicker(time.Second * time.Duration(jzRsyncConfig.Interval))
 	defer interval.Stop()
 
 F:
 	for {
 		select {
-			case <- this.intervalToStopped:
+			case <- obj.intervalToStopped:
 				JzLogger.Print("catch intervalStopped signal")
 				break F
 			case <- interval.C:
@@ -236,36 +236,36 @@ F:
 
 				if len(tasks) > 0 {
 					for _, t := range tasks {
-						this.queue <- t
+						obj.queue <- t
 					}
 				}
 			}()
 		}
 	}
 
-	this.stopped <- true
+	obj.stopped <- true
 	JzLogger.Print("interval exit")
 }
 
-func (this *JzRsync) Run() {
+func (obj *JzRsync) Run() {
 	if jzRsyncConfig.Interval > 0 {
 		go func() {
-			this.Interval()
+			obj.Interval()
 		}()
 	} else {
-		this.stopped <- true
+		obj.stopped <- true
 	}
 
 E:
 	for {
 		select {
-			case <- this.taskToStopped:
+			case <- obj.taskToStopped:
 				JzLogger.Println("catch taskToStopped signal")
 				break E
-			case t:= <- this.queue:
+			case t:= <- obj.queue:
 				JzLogger.Print("get task from queue", t)
 				n := 0
-				for _, ts := range this.target {
+				for _, ts := range obj.target {
 					JzLogger.Printf("task id %d will rsync for %s run at %s", t.Id, ts.Target.Name, ts.Target.Address)
 					if InStringArray(strings.ToUpper(ts.Target.Name), t.HostNames) == false && InStringArray("ALL", t.HostNames) == false {
 						n += 1
@@ -286,6 +286,6 @@ E:
 		}
 	}
 
-	this.stopped <- true
+	obj.stopped <- true
 	JzLogger.Print("rsync exit")
 }

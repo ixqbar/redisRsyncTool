@@ -15,34 +15,34 @@ type JzTask struct {
 	RsyncMaxNum int
 }
 
-func (this *JzTask) Done(num int)  {
-	if this.Id <= 0 {
+func (obj *JzTask) Done(num int)  {
+	if obj.Id <= 0 {
 		return
 	}
 
 	status := 500
-	if this.ExpectFinishedNum <= num {
+	if obj.ExpectFinishedNum <= num {
 		status = 200
 	}
 
-	n, err := JzDaoInstance().UpdateTask(this.Id, status)
+	n, err := JzDaoInstance().UpdateTask(obj.Id, status)
 	if err == nil {
-		JzLogger.Printf("update task %d success status=%d,affectedRows=%d", this.Id, status, n)
+		JzLogger.Printf("update task %d success status=%d,affectedRows=%d", obj.Id, status, n)
 	} else {
-		JzLogger.Printf("update task %d failed", this.Id)
+		JzLogger.Printf("update task %d failed", obj.Id)
 	}
 }
 
-func (this *JzTask) Cancel(status int)  {
-	if this.Id <= 0 {
+func (obj *JzTask) Cancel(status int)  {
+	if obj.Id <= 0 {
 		return
 	}
 
-	n, err := JzDaoInstance().UpdateTask(this.Id, status)
+	n, err := JzDaoInstance().UpdateTask(obj.Id, status)
 	if err == nil {
-		JzLogger.Printf("update task %d success status=%d,affectedRows=%d", this.Id, status, n)
+		JzLogger.Printf("update task %d success status=%d,affectedRows=%d", obj.Id, status, n)
 	} else {
-		JzLogger.Printf("update task %d failed", this.Id)
+		JzLogger.Printf("update task %d failed", obj.Id)
 	}
 }
 
