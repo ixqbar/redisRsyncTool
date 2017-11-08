@@ -114,7 +114,7 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 			continue
 		}
 
-		task.HostNames = append(task.HostNames, strings.ToUpper(destName.String))
+		task.HostNames = append(task.HostNames, strings.Split(strings.ToUpper(destName.String), ",")...)
 
 		JzLogger.Print("got task from db", task)
 

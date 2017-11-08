@@ -191,7 +191,7 @@ func (obj *JzRsync) Init()  {
 	for i := 0; i < t ; i++ {
 		obj.target[i] = &JzRsyncTarget{Target:&jzRsyncConfig.TargetServer[i]}
 		obj.target[i].Start()
-		obj.AllTargetHostNames = append(obj.AllTargetHostNames, strings.ToUpper(jzRsyncConfig.TargetServer[i].Name))
+		obj.AllTargetHostNames = append(obj.AllTargetHostNames, jzRsyncConfig.TargetServer[i].Name...)
 	}
 }
 
@@ -260,29 +260,30 @@ E:
 	for {
 		select {
 			case <- obj.taskToStopped:
-				JzLogger.Println("catch taskToStopped signal")
+				JzLogger.Print("catch taskToStopped signal")
 				break E
-			case t:= <- obj.queue:
-				JzLogger.Print("get task from queue", t)
+			case task:= <- obj.queue:
+				JzLogger.Print("get task from queue", task)
 				n := 0
-				for _, ts := range obj.target {
-					JzLogger.Printf("task id %d will rsync for %s run at %s", t.Id, ts.Target.Name, ts.Target.Address)
-					if InStringArray(strings.ToUpper(ts.Target.Name), t.HostNames) == false && InStringArray("ALL", t.HostNames) == false {
+				for _, hn := range task.HostNames {
+					for _, ts := range obj.target {
+						JzLogger.Printf("task id %d-%s will rsync for %s run at %s", task.Id, hn, ts.Target.Name.ToString(), ts.Target.Address)
+						if  hn != "*" && InStringArray(hn, ts.Target.Name) == false {
+							n += 1
+							JzLogger.Printf("task id %d-%s rsync ignore for %s run at %s", task.Id, hn, ts.Target.Name.ToString(), ts.Target.Address)
+							continue
+						}
+
+						ok, err := ts.Rsync(task, task.RsyncMaxNum)
+						if !ok {
+							JzLogger.Print(err)
+							continue
+						}
+
 						n += 1
-						JzLogger.Printf("task id %d ignore with %s run at %s", t.Id, ts.Target.Name, ts.Target.Address)
-						continue
 					}
-
-					ok, err := ts.Rsync(t, t.RsyncMaxNum)
-					if !ok {
-						JzLogger.Print(err)
-						break
-					}
-
-					n += 1
 				}
-
-				t.Done(n)
+				task.Done(n)
 		}
 	}
 

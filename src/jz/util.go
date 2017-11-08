@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"io"
 	"encoding/hex"
+	"strings"
 )
 
 func CheckFileIsDirectory(path string) (bool, error)  {
@@ -59,4 +60,19 @@ func GetFileMD5sum(file string) (string, error) {
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func HasIntersection(a []string, b []string) bool  {
+	if len(a) == 0 || len(b) == 0 {
+		return false
+	}
+
+	t := strings.Join(b, "%") + "%"
+	for _,v := range a {
+		if strings.Contains(t, v + "%") {
+			return true
+		}
+	}
+
+	return false
 }

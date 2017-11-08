@@ -69,8 +69,8 @@ func (obj *JzRsyncRedisHandle) Set(hostName, file, action, md5sum string) (error
 		}
 	}
 
-	hostName = strings.ToUpper(hostName)
-	if hostName != "ALL" && false == InStringArray(hostName, obj.rsync.AllTargetHostNames) {
+	hostNames := strings.Split(strings.ToUpper(hostName), ",")
+	if false == InStringArray("*", hostNames) && false == HasIntersection(hostNames, obj.rsync.AllTargetHostNames) {
 		return ERR_TARGET_HOST
 	}
 
@@ -83,7 +83,7 @@ func (obj *JzRsyncRedisHandle) Set(hostName, file, action, md5sum string) (error
 		return NOT_TRANSFER_FILE_MD5SUM
 	}
 
-	task.HostNames = append(task.HostNames, hostName)
+	task.HostNames = append(task.HostNames, hostNames...)
 
 	obj.rsync.Send(task)
 

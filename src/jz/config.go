@@ -5,10 +5,27 @@ import (
 	"os"
 	"encoding/xml"
 	"fmt"
+	"strings"
 )
 
+type TargetNames []string
+
+func (l *TargetNames) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var content string
+	if err := d.DecodeElement(&content, &start); err != nil {
+		return err
+	}
+
+	*l = strings.Split(content, ",")
+	return nil
+}
+
+func (l *TargetNames) ToString() string  {
+	return strings.Join(*l, ",")
+}
+
 type JzTargetServer struct {
-	Name string `xml:"name"`
+	Name TargetNames `xml:"name"`
 	Address string `xml:"address"`
 }
 

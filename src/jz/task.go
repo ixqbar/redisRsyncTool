@@ -21,7 +21,7 @@ func (obj *JzTask) Done(num int)  {
 	}
 
 	status := 500
-	if obj.ExpectFinishedNum <= num {
+	if obj.ExpectFinishedNum * len(obj.HostNames) <= num {
 		status = 200
 	}
 
