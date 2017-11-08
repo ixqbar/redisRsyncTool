@@ -16,7 +16,7 @@ func (l *TargetNames) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error
 		return err
 	}
 
-	*l = strings.Split(content, ",")
+	*l = strings.Split(strings.ToUpper(content), ",")
 	return nil
 }
 

@@ -280,6 +280,8 @@ E:
 							continue
 						}
 
+						JzLogger.Printf("task id %d-%s rsync success for %s run at %s", task.Id, hn, ts.Target.Name.ToString(), ts.Target.Address)
+
 						n += 1
 					}
 				}
