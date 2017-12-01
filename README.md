@@ -30,11 +30,11 @@ CREATE TABLE `sync_files` (
     <!-- 数据读取配置 间隔以interval为准 -->
     <interval>10</interval>
     <mysql>
-        <ip>192.168.1.42</ip>
+        <ip>127.0.0.1</ip>
         <username>root</username>
-        <password>8ik,lp-</password>
+        <password></password>
         <port>3306</port>
-        <database>admin_zwj2</database>
+        <database>data</database>
     </mysql>
 </config>
 ```
