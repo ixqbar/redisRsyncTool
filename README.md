@@ -5,12 +5,18 @@
 ```
 CREATE TABLE `sync_files` (
   `id` int(20) NOT NULL AUTO_INCREMENT,
-  `file` varchar(1024) DEFAULT NULL,
+  `uri` varchar(1024) DEFAULT NULL,
   `md5` varchar(50) DEFAULT NULL,
   `dest` varchar(10) DEFAULT NULL,
-  `status` int(20) DEFAULT NULL COMMENT '0--默认  200--已经同步 404--文件不存在 412--文件本地校验失败 500--目标服务器发生错误',
+  `status` int(11) DEFAULT '0' COMMENT '0--默认  200--已经同步 404--文件不存在 412--文件本地校验失败 500--目标服务器发生错误',
+  `at` int(11) NOT NULL DEFAULT '0',
   `time` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `uri` (`uri`),
+  KEY `dest` (`dest`),
+  KEY `md5` (`md5`),
+  KEY `status` (`status`),
+  KEY `at` (`at`)
 ) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8
 ```
 
