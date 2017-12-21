@@ -29,7 +29,8 @@ CREATE TABLE `sync_files` (
     <!-- 要同步资源的目标列表 -->
     <target>
         <server>
-            <name>cdn</name>
+            <name>online-server-1</name>
+            <group>cdn,php</group>
             <address>192.168.1.123:2010</address>
         </server>
     </target>
