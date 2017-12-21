@@ -8,6 +8,7 @@ import (
 	"time"
 	"os"
 	"errors"
+	"io"
 )
 
 type JzRsyncTarget struct {
@@ -23,11 +24,11 @@ type JzRsyncTarget struct {
 func (obj *JzRsyncTarget) Connect() (error) {
 	conn, err := net.Dial("tcp", obj.Target.Address)
 	if err != nil {
-		JzLogger.Printf("connecting target server %s failed %s", obj.Target.Address, err)
+		JzLogger.Printf("connecting target server %s[%s] failed %s", obj.Target.Name, obj.Target.Address, err)
 		return err
 	}
 
-	JzLogger.Printf("connecting target server %s run at %s success", obj.Target.Name, obj.Target.Address)
+	JzLogger.Printf("connecting target server %s[%s] success", obj.Target.Name, obj.Target.Address)
 
 	obj.conn = conn
 	obj.tryConnect = false
@@ -59,7 +60,7 @@ func (obj *JzRsyncTarget) Start() {
 					if obj.tryConnect {
 						err := obj.Connect()
 						if err != nil {
-							JzLogger.Printf("reconnect target server %s failed %s", obj.Target.Name, err)
+							JzLogger.Printf("reconnect target server %s[%s] failed %s", obj.Target.Name, obj.Target.Address, err)
 							return
 						}
 						obj.tryConnect = false
@@ -68,7 +69,7 @@ func (obj *JzRsyncTarget) Start() {
 					obj.conn.Write([]byte("PING\r\n"))
 					n, err := obj.conn.Read(obj.buffer)
 					if err == nil {
-						JzLogger.Printf("ping %s got %s", obj.Target.Name, strings.Trim(string(obj.buffer[:n]), "\r\n"))
+						JzLogger.Printf("ping %s[%s] got %s", obj.Target.Name, obj.Target.Address, strings.Trim(string(obj.buffer[:n]), "\r\n"))
 					}
 				}()
 			}
@@ -79,10 +80,10 @@ func (obj *JzRsyncTarget) Start() {
 }
 
 func (obj *JzRsyncTarget) Stop() {
-	JzLogger.Printf("send stopped signal to %s", obj.Target.Name)
+	JzLogger.Printf("send stopped signal to %s[%s]", obj.Target.Name, obj.Target.Address)
 	obj.connStopped <- true
 	<-obj.stopped
-	JzLogger.Printf("%s stopped", obj.Target.Name)
+	JzLogger.Printf("%s[%s] stopped", obj.Target.Name, obj.Target.Address)
 }
 
 func (obj *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
@@ -90,18 +91,20 @@ func (obj *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
 
 	for {
 		if loop > num {
-			return false, errors.New(fmt.Sprintf("rsync %s to server %s failed", t.Path, obj.Target.Address))
+			return false, errors.New(fmt.Sprintf("rsync %s to server %s[%s] failed", t.Path, obj.Target.Name, obj.Target.Address))
 		}
 
 		loop++
 		ok, err := obj.RsyncOnce(t)
 		if err != nil {
-			JzLogger.Print(err)
+			if err != io.EOF {
+				JzLogger.Print(err)
+			}
 			continue
 		}
 
 		if !ok {
-			JzLogger.Printf("try again rsync %s to server %s", t.Path, obj.Target.Address)
+			JzLogger.Printf("try again rsync %s to server %s[%s]", t.Path, obj.Target.Name, obj.Target.Address)
 			continue
 		}
 
@@ -116,7 +119,7 @@ func (obj *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 	if obj.tryConnect {
 		err := obj.Connect()
 		if err != nil {
-			JzLogger.Printf("reconnect target server %s failed %s", obj.Target.Name, err)
+			JzLogger.Printf("reconnect target server %s[%s] failed %s", obj.Target.Name, obj.Target.Address, err)
 			return false, err
 		}
 		obj.tryConnect = false
@@ -161,10 +164,10 @@ func (obj *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 		if rr == "OK" {
 			r = true
 		}
-		JzLogger.Printf("Transerf %s to %s %s", t.Path, obj.Target.Name, rr)
+		JzLogger.Printf("Transerf %s to %s[%s] %s", t.Path, obj.Target.Name, obj.Target.Address, rr)
 	} else {
 		obj.tryConnect = true
-		JzLogger.Printf("Transerf %s to %s failed %s", t.Path,  obj.Target.Name, err)
+		JzLogger.Printf("Transerf %s to %s[%s] failed %s", t.Path, obj.Target.Name, obj.Target.Address, err)
 	}
 
 	return r, err
@@ -191,7 +194,7 @@ func (obj *JzRsync) Init()  {
 	for i := 0; i < t ; i++ {
 		obj.target[i] = &JzRsyncTarget{Target:&jzRsyncConfig.TargetServer[i]}
 		obj.target[i].Start()
-		obj.AllTargetHostNames = append(obj.AllTargetHostNames, jzRsyncConfig.TargetServer[i].Name...)
+		obj.AllTargetHostNames = append(obj.AllTargetHostNames, jzRsyncConfig.TargetServer[i].Group...)
 	}
 }
 
@@ -267,10 +270,10 @@ E:
 				n := 0
 				for _, hn := range task.HostNames {
 					for _, ts := range obj.target {
-						JzLogger.Printf("task id %d-%s will rsync for %s run at %s", task.Id, hn, ts.Target.Name.ToString(), ts.Target.Address)
-						if  hn != "*" && InStringArray(hn, ts.Target.Name) == false {
+						JzLogger.Printf("task id %d-%s will rsync for %s[%s]", task.Id, hn, ts.Target.Name, ts.Target.Address)
+						if  hn != "*" && InStringArray(hn, ts.Target.Group) == false {
 							n += 1
-							JzLogger.Printf("task id %d-%s rsync ignore for %s run at %s", task.Id, hn, ts.Target.Name.ToString(), ts.Target.Address)
+							JzLogger.Printf("task id %d-%s rsync ignore for %s[%s]", task.Id, hn, ts.Target.Name, ts.Target.Address)
 							continue
 						}
 
@@ -280,7 +283,7 @@ E:
 							continue
 						}
 
-						JzLogger.Printf("task id %d-%s rsync success for %s run at %s", task.Id, hn, ts.Target.Name.ToString(), ts.Target.Address)
+						JzLogger.Printf("task id %d-%s rsync success for %s[%s]", task.Id, hn, ts.Target.Name, ts.Target.Address)
 
 						n += 1
 					}

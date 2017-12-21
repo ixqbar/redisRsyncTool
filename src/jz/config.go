@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-type TargetNames []string
+type TagetGroups []string
 
-func (l *TargetNames) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+func (l *TagetGroups) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var content string
 	if err := d.DecodeElement(&content, &start); err != nil {
 		return err
@@ -20,12 +20,13 @@ func (l *TargetNames) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error
 	return nil
 }
 
-func (l *TargetNames) ToString() string  {
+func (l *TagetGroups) ToString() string  {
 	return strings.Join(*l, ",")
 }
 
 type JzTargetServer struct {
-	Name TargetNames `xml:"name"`
+	Name string `xml:"name"`
+	Group TagetGroups `xml:"group"`
 	Address string `xml:"address"`
 }
 

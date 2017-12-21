@@ -7,7 +7,8 @@
     <target>
         <server>
             <!-- 支持多目标 -->
-            <name>cdn,php</name>
+            <name>server1</name>
+            <group>cdn,php</group>
             <address>192.168.1.42:2010</address>
         </server>
     </target>
