@@ -219,41 +219,41 @@ func (obj *JzRsync) Stop() {
 	JzLogger.Print("rsync stopped")
 }
 
-func (obj *JzRsync) Interval() {
-	interval := time.NewTicker(time.Second * time.Duration(jzRsyncConfig.Interval))
-	defer interval.Stop()
-
-F:
-	for {
-		select {
-			case <- obj.intervalToStopped:
-				JzLogger.Print("catch intervalStopped signal")
-				break F
-			case <- interval.C:
-			func() {
-				tasks, err := JzDaoInstance().GetTasks()
-				if err != nil {
-					JzLogger.Print(err)
-					return
-				}
-
-				if len(tasks) > 0 {
-					for _, t := range tasks {
-						obj.queue <- t
-					}
-				}
-			}()
-		}
+func (obj *JzRsync) pullTasks()  {
+	tasks, err := JzDaoInstance().GetTasks()
+	if err != nil {
+		JzLogger.Print(err)
+		return
 	}
 
-	obj.stopped <- true
-	JzLogger.Print("interval exit")
+	if len(tasks) > 0 {
+		for _, t := range tasks {
+			obj.queue <- t
+		}
+	}
 }
 
-func (obj *JzRsync) Run() {
+func (obj *JzRsync) Run(newTask chan bool) {
 	if jzRsyncConfig.Interval > 0 {
 		go func() {
-			obj.Interval()
+			interval := time.NewTicker(time.Second * time.Duration(jzRsyncConfig.Interval))
+			defer interval.Stop()
+
+		F:
+			for {
+				select {
+				case <- obj.intervalToStopped:
+					JzLogger.Print("catch intervalStopped signal")
+					break F
+				case <- interval.C:
+					obj.pullTasks()
+				case <- newTask:
+					obj.pullTasks()
+				}
+			}
+
+			obj.stopped <- true
+			JzLogger.Print("interval exit")
 		}()
 	} else {
 		obj.stopped <- true

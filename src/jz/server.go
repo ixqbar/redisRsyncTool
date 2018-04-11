@@ -25,17 +25,22 @@ type JzRsyncRedisHandle struct {
 	redis.RedisHandler
 	sync.Mutex
 	rsync *JzRsync
+	pullSig chan bool
 }
 
 func (obj *JzRsyncRedisHandle) Init() error {
 	obj.Lock()
 	defer obj.Unlock()
 
+	obj.pullSig = make(chan bool)
+
+	obj.Initiation(nil)
+
 	obj.rsync = &JzRsync{}
 	obj.rsync.Init()
 
 	go func() {
-		obj.rsync.Run()
+		obj.rsync.Run(obj.pullSig)
 	}()
 
 	return nil
@@ -48,6 +53,13 @@ func (obj *JzRsyncRedisHandle) Shutdown() {
 
 func (obj *JzRsyncRedisHandle) Version() (string, error) {
 	return VERSION, nil
+}
+
+func (obj *JzRsyncRedisHandle) Sync() (error) {
+	go func() {
+		obj.pullSig <- true
+	}()
+	return nil
 }
 
 func (obj *JzRsyncRedisHandle) Setex(hostName, file, md5sum string) (error) {
@@ -94,14 +106,6 @@ func Run() {
 	redis.Logger.Print(jzRsyncConfig)
 
 	jzRsyncRedisHandle := &JzRsyncRedisHandle{}
-
-	jzRsyncRedisHandle.SetShield("Init")
-	jzRsyncRedisHandle.SetShield("Shutdown")
-	jzRsyncRedisHandle.SetShield("Lock")
-	jzRsyncRedisHandle.SetShield("Unlock")
-	jzRsyncRedisHandle.SetShield("SetShield")
-	jzRsyncRedisHandle.SetShield("SetConfig")
-	jzRsyncRedisHandle.SetShield("CheckShield")
 
 	defer func() {
 		jzRsyncRedisHandle.Shutdown()
