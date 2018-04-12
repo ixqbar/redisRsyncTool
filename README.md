@@ -49,6 +49,7 @@ CREATE TABLE `sync_files` (
 
 # 支持redis命令同步文件
 ```
-set server_name file    传输file到指定server_name
-set server_name file ex m5sum  强制验证本地file的md5sum并传到指定server_name
+set server_name file    #传输file到指定server_name
+set server_name file ex m5sum  #强制验证本地file的md5sum并传到指定server_name
+sync #发送指令立刻同步，不等间隔结束
 ```
