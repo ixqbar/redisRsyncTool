@@ -42,6 +42,8 @@ func (obj *JzRsyncTarget) Start() {
 	obj.connStopped = make(chan bool, 1)
 	obj.stopped = make(chan bool, 1)
 
+	obj.Connect()
+
 	go func() {
 		interval := time.NewTicker(time.Second * time.Duration(5))
 		defer interval.Stop()
@@ -70,6 +72,9 @@ func (obj *JzRsyncTarget) Start() {
 					n, err := obj.conn.Read(obj.buffer)
 					if err == nil {
 						JzLogger.Printf("ping %s[%s] got %s", obj.Target.Name, obj.Target.Address, strings.Trim(string(obj.buffer[:n]), "\r\n"))
+					} else {
+						obj.tryConnect = true
+						JzLogger.Printf("ping %s[%s] failed %s", obj.Target.Name, obj.Target.Address, err)
 					}
 				}()
 			}
