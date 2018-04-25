@@ -2,6 +2,12 @@
 
 # 搭配logBackupTool 读取sql表自动同步文件到指定server  https://github.com/jonnywang/logBackupTool
 
+# version
+```
+0.0.2
+```
+
+# table sql
 ```
 CREATE TABLE `sync_files` (
   `id` int(20) NOT NULL AUTO_INCREMENT,
@@ -13,10 +19,7 @@ CREATE TABLE `sync_files` (
   `time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `uri` (`uri`),
-  KEY `dest` (`dest`),
-  KEY `md5` (`md5`),
-  KEY `status` (`status`),
-  KEY `at` (`at`)
+  KEY `status` (`status`)
 ) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8
 ```
 

@@ -64,7 +64,7 @@ func (dao *JzDao) CancelTask(id int, status int) {
 
 func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 	t := time.Now().Unix()
-	rows, err := dao.db.Query(fmt.Sprintf("select id,uri,md5,dest from sync_files where at <=%d AND status!=404 AND status!=200 AND uri!= '' AND md5!='' AND dest!='' order by id asc", t))
+	rows, err := dao.db.Query(fmt.Sprintf("select id,uri,md5,dest from sync_files where status!=404 AND status!=200 AND uri!= '' AND at <=%d AND md5!='' AND dest!='' order by id asc", t))
 	if err != nil {
 		JzLogger.Print("prepare sql failed", err)
 		return nil, err
