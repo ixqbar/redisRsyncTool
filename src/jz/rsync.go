@@ -15,6 +15,7 @@ type JzRsyncTarget struct {
 	sync.Mutex
 	Target *JzTargetServer
 	conn net.Conn
+	localAddress string
 	buffer []byte
 	tryConnect bool
 	connStopped chan bool
@@ -28,12 +29,52 @@ func (obj *JzRsyncTarget) Connect() (error) {
 		return err
 	}
 
-	JzLogger.Printf("connecting target server %s[%s] success", obj.Target.Name, obj.Target.Address)
-
 	obj.conn = conn
 	obj.tryConnect = false
+	obj.localAddress = obj.conn.LocalAddr().String()
+
+	JzLogger.Printf("[%s]connecting target server %s[%s] success", obj.localAddress, obj.Target.Name, obj.Target.Address)
 
 	return nil
+}
+
+func (obj *JzRsyncTarget) WriteAll(message []byte) bool {
+	totalLen := len(message)
+	writeLen := 0
+
+	for {
+		obj.conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(30)))
+		n, err := obj.conn.Write(message[writeLen:])
+		if err != nil {
+			JzLogger.Printf("[%s] write message %s target server %s[%s] failed %s", obj.localAddress, string(message), obj.Target.Name, obj.Target.Address, err)
+			return false
+		}
+
+		writeLen += n
+		if writeLen >= totalLen {
+			return true
+		}
+	}
+}
+
+func (obj *JzRsyncTarget) ReadAll(minLen int) ([]byte, error)  {
+	readLen := 0
+
+	for {
+		obj.conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(30)))
+		n, err := obj.conn.Read(obj.buffer[readLen:])
+		if err != nil {
+			JzLogger.Printf("[%s] read target server %s[%s] response failed %s", obj.localAddress, obj.Target.Name, obj.Target.Address, err)
+			break
+		}
+
+		readLen += n
+		if readLen >= minLen {
+			break
+		}
+	}
+
+	return obj.buffer[:readLen], nil
 }
 
 func (obj *JzRsyncTarget) Start() {
@@ -62,19 +103,20 @@ func (obj *JzRsyncTarget) Start() {
 					if obj.tryConnect {
 						err := obj.Connect()
 						if err != nil {
-							JzLogger.Printf("reconnect target server %s[%s] failed %s", obj.Target.Name, obj.Target.Address, err)
+							JzLogger.Printf("[%s]reconnect target server %s[%s] failed %s", obj.localAddress, obj.Target.Name, obj.Target.Address, err)
 							return
 						}
 						obj.tryConnect = false
 					}
 
-					obj.conn.Write([]byte("PING\r\n"))
-					n, err := obj.conn.Read(obj.buffer)
-					if err == nil {
-						JzLogger.Printf("ping %s[%s] got %s", obj.Target.Name, obj.Target.Address, strings.Trim(string(obj.buffer[:n]), "\r\n"))
+					obj.WriteAll([]byte("PING\r\n"))
+
+					message, err := obj.ReadAll(6)
+					if err == nil && len(message) >= 6 {
+						JzLogger.Printf("[%s]ping %s[%s] got %s", obj.localAddress, obj.Target.Name, obj.Target.Address, strings.Trim(string(message), "\r\n"))
 					} else {
 						obj.tryConnect = true
-						JzLogger.Printf("ping %s[%s] failed %s", obj.Target.Name, obj.Target.Address, err)
+						JzLogger.Printf("[%s]ping %s[%s] failed %v", obj.localAddress, obj.Target.Name, obj.Target.Address, err)
 					}
 				}()
 			}
@@ -85,10 +127,10 @@ func (obj *JzRsyncTarget) Start() {
 }
 
 func (obj *JzRsyncTarget) Stop() {
-	JzLogger.Printf("send stopped signal to %s[%s]", obj.Target.Name, obj.Target.Address)
+	JzLogger.Printf("[%s]send stopped signal to %s[%s]", obj.localAddress, obj.Target.Name, obj.Target.Address)
 	obj.connStopped <- true
 	<-obj.stopped
-	JzLogger.Printf("%s[%s] stopped", obj.Target.Name, obj.Target.Address)
+	JzLogger.Printf("[%s]send stopped signal to %s[%s] success", obj.localAddress, obj.Target.Name, obj.Target.Address)
 }
 
 func (obj *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
@@ -96,7 +138,7 @@ func (obj *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
 
 	for {
 		if loop > num {
-			return false, errors.New(fmt.Sprintf("rsync %s to server %s[%s] failed", t.Path, obj.Target.Name, obj.Target.Address))
+			return false, errors.New(fmt.Sprintf("[%s]rsync %s to server %s[%s] failed", obj.localAddress, t.Path, obj.Target.Name, obj.Target.Address))
 		}
 
 		loop++
@@ -109,7 +151,7 @@ func (obj *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
 		}
 
 		if !ok {
-			JzLogger.Printf("try again rsync %s to server %s[%s]", t.Path, obj.Target.Name, obj.Target.Address)
+			JzLogger.Printf("[%s]try again rsync %s to server %s[%s]", obj.localAddress, t.Path, obj.Target.Name, obj.Target.Address)
 			continue
 		}
 
@@ -124,7 +166,7 @@ func (obj *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 	if obj.tryConnect {
 		err := obj.Connect()
 		if err != nil {
-			JzLogger.Printf("reconnect target server %s[%s] failed %s", obj.Target.Name, obj.Target.Address, err)
+			JzLogger.Printf("[%s]reconnect target server %s[%s] failed %s", obj.localAddress, obj.Target.Name, obj.Target.Address, err)
 			return false, err
 		}
 		obj.tryConnect = false
@@ -132,13 +174,35 @@ func (obj *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 
 	f, err := os.Open(t.Path)
 	if err != nil {
-		JzLogger.Printf("Open file %s failed %v", t.AbsolutePath, err)
+		JzLogger.Printf("[%s]Open file %s failed %v", obj.localAddress, t.AbsolutePath, err)
 		return false, err
 	}
 	defer f.Close()
 
 	targetFileSuffix := fmt.Sprintf("%s@%d@%s@%s\r\n", t.Name, t.Size, t.M5Sum, t.RelativePath)
-	obj.conn.Write([]byte(targetFileSuffix))
+	obj.WriteAll([]byte(targetFileSuffix))
+
+	//CONTINUE\r\n
+	//ALL_SAME\r\n
+
+	message, err := obj.ReadAll(10)
+	if err == nil && len(message) >= 10 {
+		rr := strings.Trim(string(message), "\r\n")
+		if rr == "ALL_SAME" {
+			JzLogger.Printf("[%s]Transfer %s to server %s[%s] success", obj.localAddress, t.Path, obj.Target.Name, obj.Target.Address)
+			return true, nil
+		}
+
+		if rr != "CONTINUE" {
+			obj.tryConnect = true
+			JzLogger.Printf("[%s]Read Transfer %s to server %s[%s] header response [%s] failed %s", obj.localAddress, t.Path, obj.Target.Name, obj.Target.Address, rr, err)
+			return false, errors.New("error transfer header response")
+		}
+	} else {
+		obj.tryConnect = true
+		JzLogger.Printf("[%s]Read Transfer %s to server %s[%s] header response failed %s", obj.localAddress, t.Path, obj.Target.Name, obj.Target.Address, err)
+		return false, err
+	}
 
 	buf := make([]byte, 1024)
 	total := 0
@@ -162,20 +226,20 @@ func (obj *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 		}
 	}
 
-	r := false
-	n, err := obj.conn.Read(obj.buffer)
-	if err == nil {
-		rr := strings.Trim(string(obj.buffer[:n]), "\r\n")
+	//OK\r\n
+	message, err = obj.ReadAll(4)
+	if err == nil && len(message) >= 4 {
+		rr := strings.Trim(string(message), "\r\n")
 		if rr == "OK" {
-			r = true
+			JzLogger.Printf("[%s]Transfer %s to server %s[%s] success", obj.localAddress, t.Path, obj.Target.Name, obj.Target.Address)
+			return true,nil
 		}
-		JzLogger.Printf("Transerf %s to %s[%s] %s", t.Path, obj.Target.Name, obj.Target.Address, rr)
-	} else {
-		obj.tryConnect = true
-		JzLogger.Printf("Transerf %s to %s[%s] failed %s", t.Path, obj.Target.Name, obj.Target.Address, err)
 	}
 
-	return r, err
+	obj.tryConnect = true
+	JzLogger.Printf("[%s]Read Transfer %s to server %s[%s] failed %s", obj.localAddress, t.Path, obj.Target.Name, obj.Target.Address, err)
+
+	return false, errors.New("error transfer header response")
 }
 
 type JzRsync struct {
@@ -251,8 +315,10 @@ func (obj *JzRsync) Run(newTask chan bool) {
 					JzLogger.Print("catch intervalStopped signal")
 					break F
 				case <- interval.C:
+					JzLogger.Print("catch pulltasks time event signal")
 					obj.pullTasks()
 				case <- newTask:
+					JzLogger.Print("catch pulltasks redis event signal")
 					obj.pullTasks()
 				}
 			}
