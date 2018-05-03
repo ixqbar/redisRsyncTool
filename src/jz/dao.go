@@ -97,6 +97,10 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 			continue
 		}
 
+		if _, ok := GlobalData.TaskMap.Load(id); ok {
+			continue
+		}
+
 		task, err := AssembleTask(id, imgUri.String)
 		if err != nil {
 			dao.CancelTask(id, 404)
@@ -117,6 +121,8 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 		}
 
 		task.HostNames = append(task.HostNames, strings.Split(strings.ToUpper(destName.String), ",")...)
+
+		GlobalData.TaskMap.Store(id, true)
 
 		JzLogger.Print("got task from db", task)
 

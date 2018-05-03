@@ -13,13 +13,14 @@ import (
 
 type JzRsyncTarget struct {
 	sync.Mutex
-	Target *JzTargetServer
-	conn net.Conn
+	Target       *JzTargetServer
+	conn         net.Conn
 	localAddress string
-	buffer []byte
-	tryConnect bool
-	connStopped chan bool
-	stopped chan bool
+	buffer       []byte
+	tryConnect   bool
+	connStopped  chan bool
+	stopped      chan bool
+	Name         string
 }
 
 func (obj *JzRsyncTarget) Connect() (error) {
@@ -57,7 +58,7 @@ func (obj *JzRsyncTarget) WriteAll(message []byte) bool {
 	}
 }
 
-func (obj *JzRsyncTarget) ReadAll(minLen int) ([]byte, error)  {
+func (obj *JzRsyncTarget) ReadAll(minLen int) ([]byte, error) {
 	readLen := 0
 
 	for {
@@ -92,10 +93,10 @@ func (obj *JzRsyncTarget) Start() {
 	T:
 		for {
 			select {
-			case <- obj.connStopped:
+			case <-obj.connStopped:
 				JzLogger.Print("catch TargetServerStopped signal")
 				break T
-			case <- interval.C:
+			case <-interval.C:
 				func() {
 					obj.Lock()
 					defer obj.Unlock()
@@ -155,7 +156,7 @@ func (obj *JzRsyncTarget) Rsync(t *JzTask, num int) (bool, error) {
 			continue
 		}
 
-		return true,nil
+		return true, nil
 	}
 }
 
@@ -232,7 +233,7 @@ func (obj *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 		rr := strings.Trim(string(message), "\r\n")
 		if rr == "OK" {
 			JzLogger.Printf("[%s]Transfer %s to server %s[%s] success", obj.localAddress, t.Path, obj.Target.Name, obj.Target.Address)
-			return true,nil
+			return true, nil
 		}
 	}
 
@@ -243,27 +244,40 @@ func (obj *JzRsyncTarget) RsyncOnce(t *JzTask) (bool, error) {
 }
 
 type JzRsync struct {
-	stopped chan bool
-	taskToStopped chan bool
+	stopped           chan bool
+	taskToStopped     chan bool
 	intervalToStopped chan bool
-	queue chan *JzTask
-	target []*JzRsyncTarget
+	queue             chan *JzTask
+	transferChannel   chan []*JzRsyncTarget
+	allTargetServer   []*JzRsyncTarget
 	AllTargetHostNames []string
 }
 
-func (obj *JzRsync) Init()  {
+func (obj *JzRsync) Init() {
 	obj.stopped = make(chan bool, 2)
 	obj.taskToStopped = make(chan bool, 1)
 	obj.intervalToStopped = make(chan bool, 1)
 	obj.queue = make(chan *JzTask, 100)
-	obj.AllTargetHostNames = make([]string, len(jzRsyncConfig.TargetServer))
 
-	t := len(jzRsyncConfig.TargetServer)
-	obj.target = make([]*JzRsyncTarget, t)
-	for i := 0; i < t ; i++ {
-		obj.target[i] = &JzRsyncTarget{Target:&jzRsyncConfig.TargetServer[i]}
-		obj.target[i].Start()
-		obj.AllTargetHostNames = append(obj.AllTargetHostNames, jzRsyncConfig.TargetServer[i].Group...)
+	transferTargetNumber := len(jzRsyncConfig.TargetServer)
+	transferChannelNumber := transferTargetNumber * 3
+
+	obj.transferChannel = make(chan []*JzRsyncTarget, transferChannelNumber)
+	obj.AllTargetHostNames = make([]string, transferTargetNumber)
+
+	for n := 0; n < transferChannelNumber; n++ {
+		target := make([]*JzRsyncTarget, transferTargetNumber)
+		for i := 0; i < transferTargetNumber; i++ {
+			target[i] = &JzRsyncTarget{Target: &jzRsyncConfig.TargetServer[i]}
+			target[i].Start()
+			target[i].Name = fmt.Sprintf("%d-%d", n, i)
+			obj.allTargetServer = append(obj.allTargetServer, target[i])
+
+			if n == 0 {
+				obj.AllTargetHostNames = append(obj.AllTargetHostNames, jzRsyncConfig.TargetServer[i].Group...)
+			}
+		}
+		obj.transferChannel <- target
 	}
 }
 
@@ -278,17 +292,19 @@ func (obj *JzRsync) Stop() {
 	obj.taskToStopped <- true
 	JzLogger.Print("send Stopped signal OK")
 
-	<- obj.stopped
-	<- obj.stopped
+	<-obj.stopped
+	<-obj.stopped
 
-	for _, ts := range obj.target {
+	for _, ts := range obj.allTargetServer {
 		ts.Stop()
 	}
+
+	close(obj.transferChannel)
 
 	JzLogger.Print("rsync stopped")
 }
 
-func (obj *JzRsync) pullTasks()  {
+func (obj *JzRsync) pullTasks() {
 	tasks, err := JzDaoInstance().GetTasks()
 	if err != nil {
 		JzLogger.Print(err)
@@ -311,13 +327,13 @@ func (obj *JzRsync) Run(newTask chan bool) {
 		F:
 			for {
 				select {
-				case <- obj.intervalToStopped:
+				case <-obj.intervalToStopped:
 					JzLogger.Print("catch intervalStopped signal")
 					break F
-				case <- interval.C:
+				case <-interval.C:
 					JzLogger.Print("catch pulltasks time event signal")
 					obj.pullTasks()
-				case <- newTask:
+				case <-newTask:
 					JzLogger.Print("catch pulltasks redis event signal")
 					obj.pullTasks()
 				}
@@ -333,36 +349,45 @@ func (obj *JzRsync) Run(newTask chan bool) {
 E:
 	for {
 		select {
-			case <- obj.taskToStopped:
-				JzLogger.Print("catch taskToStopped signal")
-				break E
-			case task:= <- obj.queue:
-				JzLogger.Print("get task from queue", task)
-				n := 0
-				for _, hn := range task.HostNames {
-					for _, ts := range obj.target {
-						JzLogger.Printf("task id %d-%s will rsync for %s[%s]", task.Id, hn, ts.Target.Name, ts.Target.Address)
-						if  hn != "*" && InStringArray(hn, ts.Target.Group) == false {
-							n += 1
-							JzLogger.Printf("task id %d-%s rsync ignore for %s[%s]", task.Id, hn, ts.Target.Name, ts.Target.Address)
-							continue
-						}
-
-						ok, err := ts.Rsync(task, task.RsyncMaxNum)
-						if !ok {
-							JzLogger.Print(err)
-							continue
-						}
-
-						JzLogger.Printf("task id %d-%s rsync success for %s[%s]", task.Id, hn, ts.Target.Name, ts.Target.Address)
-
-						n += 1
-					}
-				}
-				task.Done(n)
+		case <-obj.taskToStopped:
+			JzLogger.Print("catch taskToStopped signal")
+			break E
+		case task := <-obj.queue:
+			go Transfer(obj, task)
 		}
 	}
 
 	obj.stopped <- true
 	JzLogger.Print("rsync exit")
+}
+
+func Transfer(obj *JzRsync, task *JzTask) {
+	targetServer := <-obj.transferChannel
+	startTime := time.Now()
+	JzLogger.Print("get task from queue", task)
+	n := 0
+	for _, hn := range task.HostNames {
+		for _, ts := range targetServer {
+			JzLogger.Printf("task id %d-%s will rsync for %s[%s][%s]", task.Id, hn, ts.Name, ts.Target.Name, ts.Target.Address)
+			if hn != "*" && InStringArray(hn, ts.Target.Group) == false {
+				n += 1
+				JzLogger.Printf("task id %d-%s rsync ignore for %s[%s][%s]", task.Id, hn, ts.Name, ts.Target.Name, ts.Target.Address)
+				continue
+			}
+
+			ok, err := ts.Rsync(task, task.RsyncMaxNum)
+			if !ok {
+				JzLogger.Print(err)
+				continue
+			}
+
+			JzLogger.Printf("task id %d-%s rsync success for %s[%s][%s]", task.Id, hn, ts.Name, ts.Target.Name, ts.Target.Address)
+
+			n += 1
+		}
+	}
+	task.Done(n)
+	JzLogger.Printf("transfer queue task %v done cost time %s", task, time.Since(startTime).String())
+	GlobalData.TaskMap.Delete(task.Id)
+	obj.transferChannel <- targetServer
 }
