@@ -260,7 +260,7 @@ func (obj *JzRsync) Init() {
 	obj.queue = make(chan *JzTask, 100)
 
 	transferTargetNumber := len(jzRsyncConfig.TargetServer)
-	transferChannelNumber := transferTargetNumber * 3
+	transferChannelNumber := transferTargetNumber * 10
 
 	obj.transferChannel = make(chan []*JzRsyncTarget, transferChannelNumber)
 	obj.AllTargetHostNames = make([]string, transferTargetNumber)
@@ -315,6 +315,7 @@ func (obj *JzRsync) pullTasks() {
 		for _, t := range tasks {
 			obj.queue <- t
 		}
+		obj.queue <- nil
 	}
 }
 
@@ -353,7 +354,11 @@ E:
 			JzLogger.Print("catch taskToStopped signal")
 			break E
 		case task := <-obj.queue:
-			go Transfer(obj, task)
+			if task != nil {
+				go Transfer(obj, task)
+			} else {
+				obj.pullTasks()
+			}
 		}
 	}
 

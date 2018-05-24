@@ -13,6 +13,7 @@ import (
 type JzDao struct {
 	sync.Mutex
 	db *sql.DB
+	id int
 }
 
 var jzDaoInstance *JzDao
@@ -39,6 +40,7 @@ func JzDaoInstance() *JzDao {
 
 		jzDaoInstance = &JzDao{
 			db: db,
+			id: 0,
 		}
 	})
 
@@ -63,8 +65,11 @@ func (dao *JzDao) CancelTask(id int, status int) {
 }
 
 func (dao *JzDao) GetTasks() ([]*JzTask, error) {
+	dao.Lock()
+	defer dao.Unlock()
+
 	t := time.Now().Unix()
-	rows, err := dao.db.Query(fmt.Sprintf("select id,uri,md5,dest from sync_files where status!=404 AND status!=200 AND uri!= '' AND at <=%d AND md5!='' AND dest!='' order by id asc", t))
+	rows, err := dao.db.Query(fmt.Sprintf("select id,uri,md5,dest from sync_files where id>? AND status!=404 AND status!=200 AND uri!= '' AND at <=%d AND md5!='' AND dest!='' order by id asc", t), dao.id)
 	if err != nil {
 		JzLogger.Print("prepare sql failed", err)
 		return nil, err
@@ -101,6 +106,10 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 			continue
 		}
 
+		if id > dao.id {
+			dao.id = id
+		}
+
 		task, err := AssembleTask(id, imgUri.String)
 		if err != nil {
 			dao.CancelTask(id, 404)
@@ -128,6 +137,8 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 
 		result = append(result, task)
 	}
+
+	JzLogger.Printf("pull %d tasks", len(result))
 
 	return result, nil
 }
