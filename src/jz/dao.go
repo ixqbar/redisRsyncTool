@@ -76,11 +76,13 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 	}
 	defer rows.Close()
 
+	var queryId int
 	var id int
 	var imgUri sql.NullString
 	var md5Sum sql.NullString
 	var destName sql.NullString
 
+	queryId = dao.id
 	result := make([]*JzTask, 0)
 
 	for rows.Next() {
@@ -138,7 +140,7 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 		result = append(result, task)
 	}
 
-	JzLogger.Printf("pull %d tasks", len(result))
+	JzLogger.Printf("pull %d tasks by min id %d", len(result), queryId)
 
 	return result, nil
 }

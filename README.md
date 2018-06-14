@@ -48,7 +48,7 @@ CREATE TABLE `sync_files` (
     </mysql>
 </config>
 ```
-* server的name相同时可认为为同组,与数据表字段dest相同则会被列为文件的传输目的地
+* server的group与数据表字段dest相同则会被列为文件的传输目的地
 
 # 支持redis命令同步文件
 ```
