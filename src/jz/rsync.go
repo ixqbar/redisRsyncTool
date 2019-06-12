@@ -114,7 +114,7 @@ func (obj *JzRsyncTarget) Start() {
 
 					message, err := obj.ReadAll(6)
 					if err == nil && len(message) >= 6 {
-						JzLogger.Printf("[%s]ping %s[%s] got %s", obj.localAddress, obj.Target.Name, obj.Target.Address, strings.Trim(string(message), "\r\n"))
+						//JzLogger.Printf("[%s]ping %s[%s] got %s", obj.localAddress, obj.Target.Name, obj.Target.Address, strings.Trim(string(message), "\r\n"))
 					} else {
 						obj.tryConnect = true
 						JzLogger.Printf("[%s]ping %s[%s] failed %v", obj.localAddress, obj.Target.Name, obj.Target.Address, err)
@@ -315,7 +315,6 @@ func (obj *JzRsync) pullTasks() {
 		for _, t := range tasks {
 			obj.queue <- t
 		}
-		obj.queue <- nil
 	}
 }
 
@@ -354,11 +353,8 @@ E:
 			JzLogger.Print("catch taskToStopped signal")
 			break E
 		case task := <-obj.queue:
-			if task != nil {
-				go Transfer(obj, task)
-			} else {
-				obj.pullTasks()
-			}
+			targetServer := <-obj.transferChannel
+			go Transfer(obj, targetServer, task)
 		}
 	}
 
@@ -366,8 +362,7 @@ E:
 	JzLogger.Print("rsync exit")
 }
 
-func Transfer(obj *JzRsync, task *JzTask) {
-	targetServer := <-obj.transferChannel
+func Transfer(obj *JzRsync, targetServer []*JzRsyncTarget, task *JzTask) {
 	startTime := time.Now()
 	JzLogger.Print("get task from queue", task)
 	n := 0

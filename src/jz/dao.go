@@ -5,8 +5,8 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"path"
-	"sync"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -69,7 +69,11 @@ func (dao *JzDao) GetTasks() ([]*JzTask, error) {
 	defer dao.Unlock()
 
 	t := time.Now().Unix()
-	rows, err := dao.db.Query(fmt.Sprintf("select id,uri,md5,dest from sync_files where id>? AND status!=404 AND status!=200 AND uri!= '' AND at <=%d AND md5!='' AND dest!='' order by id asc", t), dao.id)
+	rows, err := dao.db.Query(fmt.Sprintf(`
+			select id,uri,md5,dest 
+			from sync_files 
+			where id>? AND status!=404 AND status!=200 AND uri!= '' AND at <=%d AND md5!='' AND dest!='' 
+			order by id asc`, t), dao.id)
 	if err != nil {
 		JzLogger.Print("prepare sql failed", err)
 		return nil, err
