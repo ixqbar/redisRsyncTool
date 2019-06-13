@@ -257,7 +257,7 @@ func (obj *JzRsync) Init() {
 	obj.stopped = make(chan bool, 2)
 	obj.taskToStopped = make(chan bool, 1)
 	obj.intervalToStopped = make(chan bool, 1)
-	obj.queue = make(chan *JzTask, 100)
+	obj.queue = make(chan *JzTask, 1024)
 
 	transferTargetNumber := len(jzRsyncConfig.TargetServer)
 	transferChannelNumber := transferTargetNumber * 10
